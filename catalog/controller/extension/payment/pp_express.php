@@ -2,55 +2,20 @@
 class ControllerExtensionPaymentPPExpress extends Controller {
 	public function index() {
 		$this->load->language('extension/payment/pp_express');
+		
+		$data['payment_pp_express_incontext_disable'] = $this->config->get('payment_pp_express_incontext_disable');
 
 		if ($this->config->get('payment_pp_express_test') == 1) {
-			$data['paypal_environment'] = "sandbox";
+			$data['username'] = $this->config->get('payment_pp_express_sandbox_username');
 		} else {
-			$data['paypal_environment'] = "production";
+			$data['username'] = $this->config->get('payment_pp_express_username');
 		}
-
-		$data['payment_pp_express_style_layout'] = $this->config->get('payment_pp_express_style_layout') != null ? $this->config->get('payment_pp_express_style_layout') : "vertical";
-		$data['payment_pp_express_style_size'] = $this->config->get('payment_pp_express_style_size') != null ? $this->config->get('payment_pp_express_style_size') : "medium";
-		$data['payment_pp_express_style_shape'] = $this->config->get('payment_pp_express_style_shape') != null ? $this->config->get('payment_pp_express_style_shape') : "rect";
-		$data['payment_pp_express_style_color'] = $this->config->get('payment_pp_express_style_color') != null ? $this->config->get('payment_pp_express_style_color') : "blue";
-
-		$data['payment_pp_express_pp_credit'] = $this->config->get('payment_pp_express_pp_credit');
-		$data['payment_pp_express_pp_cards'] = $this->config->get('payment_pp_express_pp_cards');
-		$data['payment_pp_express_pp_elv'] = $this->config->get('payment_pp_express_pp_elv');
-
-		$disallowed_payment_methods = array();
-		$allowed_payment_methods = array();
-
-		if ($this->config->get('payment_pp_express_pp_credit') == 1) {
-			$allowed_payment_methods[] = "paypal.FUNDING.CREDIT";
-		} else {
-			$disallowed_payment_methods[] = "paypal.FUNDING.CREDIT";
-		}
-
-		if ($this->config->get('payment_pp_express_pp_cards') == 1) {
-			$allowed_payment_methods[] = "paypal.FUNDING.CARD";
-		} else {
-			$disallowed_payment_methods[] = "paypal.FUNDING.CARD";
-		}
-
-		if ($this->config->get('payment_pp_express_pp_elv') == 1) {
-			$allowed_payment_methods[] = "paypal.FUNDING.ELV";
-		} else {
-			$disallowed_payment_methods[] = "paypal.FUNDING.ELV";
-		}
-
-		$data['allowed_payment_methods'] = implode(",", $allowed_payment_methods);
-		$data['disallowed_payment_methods'] = implode(",", $disallowed_payment_methods);
 
 		$data['continue'] = $this->url->link('extension/payment/pp_express/checkout', '', true);
 
 		unset($this->session->data['paypal']);
 
 		return $this->load->view('extension/payment/pp_express', $data);
-	}
-
-	public function eventLoadCheckoutJs($route, &$data) {
-		$this->document->addScript('https://www.paypalobjects.com/api/checkout.js');
 	}
 
 	public function express() {
@@ -108,8 +73,11 @@ class ControllerExtensionPaymentPPExpress extends Controller {
 			'CANCELURL'          => $this->url->link('checkout/cart', '', true),
 			'REQCONFIRMSHIPPING' => 0,
 			'NOSHIPPING'         => $shipping,
+			'ALLOWNOTE'          => $this->config->get('payment_pp_express_allow_note'),
+			'LOCALECODE'         => 'EN',
 			'LANDINGPAGE'        => 'Login',
-			'LOGOIMG'             => $this->model_tool_image->resize($this->config->get('payment_pp_express_logo'), 750, 90),
+			'HDRIMG'             => $this->model_tool_image->resize($this->config->get('payment_pp_express_logo'), 750, 90),
+			'PAYFLOWCOLOR'       => $this->config->get('payment_pp_express_colour'),
 			'CHANNELTYPE'        => 'Merchant'
 		);
 
@@ -168,6 +136,7 @@ class ControllerExtensionPaymentPPExpress extends Controller {
 		}
 
 		if ($this->session->data['paypal']['guest'] == true) {
+
 			$this->session->data['guest']['customer_group_id'] = $this->config->get('config_customer_group_id');
 			$this->session->data['guest']['firstname'] = trim($result['FIRSTNAME']);
 			$this->session->data['guest']['lastname'] = trim($result['LASTNAME']);
@@ -343,12 +312,7 @@ class ControllerExtensionPaymentPPExpress extends Controller {
 					$shipping_last_name = implode(' ', $shipping_name);
 
 					$country_info = $this->db->query("SELECT * FROM `" . DB_PREFIX . "country` WHERE `iso_code_2` = '" . $this->db->escape($result['PAYMENTREQUEST_0_SHIPTOCOUNTRYCODE']) . "' AND `status` = '1' LIMIT 1")->row;
-
-					if (isset($result['PAYMENTREQUEST_0_SHIPTOSTATE'])) {
-						$zone_info = $this->db->query("SELECT * FROM `" . DB_PREFIX . "zone` WHERE (`name` = '" . $this->db->escape($result['PAYMENTREQUEST_0_SHIPTOSTATE']) . "' OR `code` = '" . $this->db->escape($result['PAYMENTREQUEST_0_SHIPTOSTATE']) . "') AND `status` = '1' AND `country_id` = '" . (int)$country_info['country_id'] . "'")->row;
-					} else {
-						$zone_info = array();
-					}
+					$zone_info = $this->db->query("SELECT * FROM `" . DB_PREFIX . "zone` WHERE (`name` = '" . $this->db->escape($result['PAYMENTREQUEST_0_SHIPTOSTATE']) . "' OR `code` = '" . $this->db->escape($result['PAYMENTREQUEST_0_SHIPTOSTATE']) . "') AND `status` = '1' AND `country_id` = '" . (int)$country_info['country_id'] . "'")->row;
 
 					$address_data = array(
 						'firstname'  => $shipping_first_name,
@@ -1239,7 +1203,7 @@ class ControllerExtensionPaymentPPExpress extends Controller {
 						}
 
 						//create new recurring and set to pending status as no payment has been made yet.
-						$recurring_id = $this->model_checkout_recurring->addRecurring($order_id, $recurring_description, $item['recurring']);
+						$recurring_id = $this->model_checkout_recurring->addRecurring($order_id, $recurring_description, $item);
 
 						$data['PROFILEREFERENCE'] = $recurring_id;
 						$data['DESC'] = $recurring_description;
@@ -1300,6 +1264,10 @@ class ControllerExtensionPaymentPPExpress extends Controller {
 		$this->load->model('tool/image');
 		$this->load->model('checkout/order');
 
+		if(!isset($this->session->data['order_id'])) {
+			return false;
+		}
+
 		$order_info = $this->model_checkout_order->getOrder($this->session->data['order_id']);
 
 		$max_amount = $this->cart->getTotal() * 1.5;
@@ -1345,9 +1313,12 @@ class ControllerExtensionPaymentPPExpress extends Controller {
 			'CANCELURL'          => $this->url->link('checkout/checkout', '', true),
 			'REQCONFIRMSHIPPING' => 0,
 			'NOSHIPPING'         => $shipping,
+			'LOCALECODE'         => 'EN',
 			'LANDINGPAGE'        => 'Login',
-			'LOGOIMG'            => $this->model_tool_image->resize($this->config->get('payment_pp_express_logo'), 750, 90),
+			'HDRIMG'             => $this->model_tool_image->resize($this->config->get('payment_pp_express_logo'), 750, 90),
+			'PAYFLOWCOLOR'       => $this->config->get('payment_pp_express_colour'),
 			'CHANNELTYPE'        => 'Merchant',
+			'ALLOWNOTE'          => $this->config->get('payment_pp_express_allow_note')
 		);
 
 		$data = array_merge($data, $data_shipping);
@@ -1377,10 +1348,11 @@ class ControllerExtensionPaymentPPExpress extends Controller {
 
 		$this->session->data['paypal']['token'] = $result['TOKEN'];
 
-		$json = array("token" => $result['TOKEN']);
-
-		$this->response->addHeader('Content-Type: application/json');
-		$this->response->setOutput(json_encode($json));
+		if ($this->config->get('payment_pp_express_test') == 1) {
+			header('Location: https://www.sandbox.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token=' . $result['TOKEN'] . '&useraction=commit');
+		} else {
+			header('Location: https://www.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token=' . $result['TOKEN'] . '&useraction=commit');
+		}
 	}
 
 	public function checkoutReturn() {
@@ -1465,7 +1437,7 @@ class ControllerExtensionPaymentPPExpress extends Controller {
 			$paypal_transaction_data = array(
 				'paypal_order_id'       => $paypal_order_id,
 				'transaction_id'        => $result['PAYMENTINFO_0_TRANSACTIONID'],
-				'parent_id' 			=> '',
+				'parent_id' => '',
 				'note'                  => '',
 				'msgsubid'              => '',
 				'receipt_id'            => (isset($result['PAYMENTINFO_0_RECEIPTID']) ? $result['PAYMENTINFO_0_RECEIPTID'] : ''),
@@ -1529,7 +1501,7 @@ class ControllerExtensionPaymentPPExpress extends Controller {
 					}
 
 					//create new recurring and set to pending status as no payment has been made yet.
-					$recurring_id = $this->model_checkout_recurring->addRecurring($order_id, $recurring_description, $item['recurring']);
+					$recurring_id = $this->model_checkout_recurring->addRecurring($order_id, $recurring_description, $item);
 
 					$data['PROFILEREFERENCE'] = $recurring_id;
 					$data['DESC'] = $recurring_description;
@@ -1681,7 +1653,7 @@ class ControllerExtensionPaymentPPExpress extends Controller {
 					$transaction = array(
 						'paypal_order_id'       => $parent_transaction['paypal_order_id'],
 						'transaction_id'        => $this->request->post['txn_id'],
-						'parent_id' 			=> $this->request->post['parent_txn_id'],
+						'parent_id' => $this->request->post['parent_txn_id'],
 						'note'                  => '',
 						'msgsubid'              => '',
 						'receipt_id'            => (isset($this->request->post['receipt_id']) ? $this->request->post['receipt_id'] : ''),
