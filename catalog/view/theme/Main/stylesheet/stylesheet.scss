@@ -1,0 +1,52 @@
+//===Imports===
+@import "imports/normalize.scss";
+@import "imports/variables.scss";
+@import "imports/fonts.scss";
+//===/Imports===
+
+// ===Common===
+*,
+*::after,
+*::before{
+    box-sizing: border-box;
+}
+
+html{
+    font-size: 62.5%;
+}
+
+h1,
+h2,
+h3{
+    margin: 0;
+    padding: 0;
+}
+
+ul{
+    list-style: none;
+}
+
+.section-inner{
+    margin: 0 auto;
+    width: 76%;
+}
+
+// ===/Common===
+
+// ===Header===
+header{
+
+}
+// ===/Header===
+
+// ===Main===
+main{
+    
+}
+// ===/Main===
+
+// ===Footer===
+footer{
+    
+}
+// ===/Footer===
